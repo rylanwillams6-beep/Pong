@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Atari Pong - With Sounds</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #000;
+      color: #0f0;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    canvas {
+      border: 4px solid #0f0;
+      background: #000;
+      box-shadow: 0 0 30px #0f0;
+      cursor: pointer;
+    }
+    #info {
+      margin: 20px 0;
+      text-align: center;
+    }
+    h1 {
+      margin: 10px 0;
+      text-shadow: 0 0 15px #0f0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Atari Pong - With Beeps</h1>
+  <canvas id="game" width="800" height="500"></canvas>
+  <div id="info">
+    <p><strong>W / S</strong> = move left paddle | <strong>Space</strong> = serve ball</p>
+    <p>Right paddle = AI | First to 11 wins!</p>
+    <p>Click canvas to focus if keys don't work</p>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    let p1Y = canvas.height / 2 - 50;
+    let p2Y = canvas.height / 2 - 50;
+    let ballX = canvas.width / 2;
+    let ballY = canvas.height / 2;
+    let ballSpeedX = 0;
+    let ballSpeedY = 0;
+    let p1Score = 0;
+    let p2Score = 0;
+
+    const paddleHeight = 100;
+    const paddleWidth = 10;
+    const ballSize = 12;
+
+    // Audio setup (square wave beeps)
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function beep(freq = 800, duration = 0.1) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'square'; // Atari retro sound
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    }
+
+    const keys = {};
+
+    window.addEventListener('keydown', e => {
+      keys[e.key.toLowerCase()] = true;
+      if (e.key === ' ') {
+        e.preventDefault();
+        if (ballSpeedX === 0) {
+          ballSpeedX = (Math.random() > 0.5 ? 6 : -6);
+          ballSpeedY = Math.random() * 4 - 2;
+          beep(1000, 0.2); // serve beep
+        }
+      }
+    });
+
+    window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+    function update() {
+      // Player controls
+      if (keys['w'] && p1Y > 0) p1Y -= 8;
+      if (keys['s'] && p1Y < canvas.height - paddleHeight) p1Y += 8;
+
+      // AI right paddle
+      if (p2Y + paddleHeight / 2 < ballY) p2Y += 5;
+      if (p2Y + paddleHeight / 2 > ballY) p2Y -= 5;
+
+      // Ball movement
+      ballX += ballSpeedX;
+      ballY += ballSpeedY;
+
+      // Wall bounce
+      if (ballY <= 0 || ballY >= canvas.height) {
+        ballSpeedY *= -1;
+        beep(600, 0.05); // wall hit
+      }
+
+      // Left paddle bounce
+      if (ballX <= 25 && ballY >= p1Y && ballY <= p1Y + paddleHeight) {
+        ballSpeedX *= -1;
+        ballSpeedY += (ballY - (p1Y + paddleHeight / 2)) * 0.2;
+        beep(1200, 0.08); // paddle hit
+      }
+
+      // Right paddle bounce
+      if (ballX >= canvas.width - 25 - ballSize && ballY >= p2Y && ballY <= p2Y + paddleHeight) {
+        ballSpeedX *= -1;
+        ballSpeedY += (ballY - (p2Y + paddleHeight / 2)) * 0.2;
+        beep(1200, 0.08); // paddle hit
+      }
+
+      // Score
+      if (ballX < 0) {
+        p2Score++;
+        beep(300, 0.3); // score sound
+        resetBall();
+      }
+      if (ballX > canvas.width) {
+        p1Score++;
+        beep(300, 0.3); // score sound
+        resetBall();
+      }
+
+      draw();
+      requestAnimationFrame(update);
+    }
+
+    function resetBall() {
+      ballX = canvas.width / 2;
+      ballY = canvas.height / 2;
+      ballSpeedX = 0;
+      ballSpeedY = 0;
+    }
+
+    function draw() {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Middle line
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([20, 20]);
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2, 0);
+      ctx.lineTo(canvas.width / 2, canvas.height);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Paddles
+      ctx.fillStyle = '#0f0';
+      ctx.fillRect(10, p1Y, paddleWidth, paddleHeight);
+      ctx.fillRect(canvas.width - 20, p2Y, paddleWidth, paddleHeight);
+
+      // Ball
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(ballX, ballY, ballSize, ballSize);
+
+      // Score
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 48px "Courier New"';
+      ctx.textAlign = 'center';
+      ctx.fillText(p1Score, canvas.width / 4, 70);
+      ctx.fillText(p2Score, canvas.width * 3 / 4, 70);
+    }
+
+    update();
+  </script>
+</body>
+</html>
